@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruthGuard AI Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { background-color: #f4f6f9; height: 100vh; display: flex; flex-direction: column; }
+        .chat-container { max-width: 900px; margin: 20px auto; background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 85vh; overflow: hidden; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #f8f9fa; display: flex; flex-direction: column; gap: 15px; }
+        .message { display: flex; align-items: flex-start; max-width: 80%; }
+        .message.user { align-self: flex-end; flex-direction: row-reverse; }
+        .message-content { padding: 12px 16px; border-radius: 12px; font-size: 0.95rem; }
+        .user .message-content { background: #0d6efd; color: white; }
+        .bot .message-content { background: #e9ecef; color: #333; }
+        .chat-input-area { padding: 20px; background: white; border-top: 1px solid #dee2e6; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/dashboard">TruthGuard AI</a>
+            <a href="/logout" class="btn btn-outline-light btn-sm">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot">
+                    <div class="message-content">Hello! I'm TruthGuard AI. How can I help you fact-check today?</div>
+                </div>
+
+                {% for chat in history %}
+                    <div class="message user"><div class="message-content">{{ chat.user_message }}</div></div>
+                    <div class="message bot"><div class="message-content markdown-body">{{ chat.gemini_response }}</div></div>
+                {% endfor %}
+            </div>
+
+            <div class="chat-input-area">
+                <div class="input-group">
+                    <input type="text" id="userInput" class="form-control" placeholder="Type your message...">
+                    <button class="btn btn-primary" id="sendBtn"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sendBtn = document.getElementById('sendBtn');
+            const userInput = document.getElementById('userInput');
+            const chatMessages = document.getElementById('chatMessages');
+            const sessionId = "{{ session_id }}";
+
+            // Render Markdown for history
+            document.querySelectorAll('.markdown-body').forEach(el => el.innerHTML = marked.parse(el.textContent));
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            async function sendMessage() {
+                const text = userInput.value.trim();
+                if (!text) return;
+
+                // Add User Message
+                chatMessages.innerHTML += `<div class="message user"><div class="message-content">${text}</div></div>`;
+                userInput.value = '';
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                try {
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ message: text, session_id: sessionId })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        const botHtml = marked.parse(data.response);
+                        chatMessages.innerHTML += `<div class="message bot"><div class="message-content">${botHtml}</div></div>`;
+                    } else {
+                        chatMessages.innerHTML += `<div class="message bot"><div class="message-content text-danger">Error: ${data.error}</div></div>`;
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            sendBtn.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
+        });
+    </script>
+</body>
+</html>
